@@ -1,7 +1,11 @@
+from typing import Callable, Union, List, Optional
 from ch01_introduction_to_algorithms.utils.input_generator import generate_random_valid_input, generate_random_invalid_input
 
+SearchFunction = Callable[[
+    List[Union[int, str]], Union[int, str]], Optional[int]]
 
-def test_search_on_random_inputs(search_function, num_valid_tests=5, num_invalid_tests=2):
+
+def test_search_on_random_inputs(search_function: SearchFunction, num_valid_tests: int = 5, num_invalid_tests: int = 2) -> None:
     """Generic test function for search algorithms
 
     Args:
