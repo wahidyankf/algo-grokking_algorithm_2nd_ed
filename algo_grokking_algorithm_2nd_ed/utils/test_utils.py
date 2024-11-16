@@ -16,7 +16,7 @@ def timeout_handler(signum, frame):
     raise TimeoutError("Test took too long to complete")
 
 
-def run_with_timeout(func: Callable, timeout: int = 30):
+def run_with_timeout(func: Callable, timeout: int = 15):
     """Run a function with a timeout
 
     Args:
@@ -163,7 +163,7 @@ def test_search_on_random_inputs(search_function: SearchFunction, num_valid_test
 
         except TimeoutError:
             print(f"\n⚠️  Tests for size {
-                  size} aborted - took longer than 30 seconds")
+                  size} aborted - took longer than 15 seconds")
             print("Skipping remaining tests for this size")
             number_performance[size] = {'avg_time': float('inf')}
             continue
@@ -233,7 +233,7 @@ def test_search_on_random_inputs(search_function: SearchFunction, num_valid_test
 
         except TimeoutError:
             print(f"\n⚠️  Tests for size {
-                  size} aborted - took longer than 30 seconds")
+                  size} aborted - took longer than 15 seconds")
             print("Skipping remaining tests for this size")
             string_performance[size] = {'avg_time': float('inf')}
             continue
