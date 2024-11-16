@@ -51,6 +51,10 @@ def binary_search(array: List[Union[int, str]], target: Union[int, str]) -> Opti
 
 if __name__ == "__main__":
     # Import test utilities
+    import sys
+    import os
+    sys.path.append(os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__))))
     from utils.test_utils import test_search_on_random_inputs
 
     # Test the binary search implementation

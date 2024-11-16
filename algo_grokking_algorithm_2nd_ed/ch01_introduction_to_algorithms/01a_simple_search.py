@@ -32,6 +32,10 @@ def simple_search(array: List[Union[int, str]], target: Union[int, str]) -> Opti
 if __name__ == "__main__":
     # Import a function from the test_utils module that tests the search
     # function with random inputs.
+    import sys
+    import os
+    sys.path.append(os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__))))
     from utils.test_utils import test_search_on_random_inputs
     # Call the test_search_on_random_inputs function with the simple_search
     # function as an argument.
