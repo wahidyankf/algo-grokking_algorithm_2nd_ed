@@ -32,7 +32,7 @@ def simple_search(array: List[Union[int, str]], target: Union[int, str]) -> Opti
 if __name__ == "__main__":
     # Import a function from the test_utils module that tests the search
     # function with random inputs.
-    from ch01_introduction_to_algorithms.utils.test_utils import test_search_on_random_inputs
+    from utils.test_utils import test_search_on_random_inputs
     # Call the test_search_on_random_inputs function with the simple_search
     # function as an argument.
     test_search_on_random_inputs(simple_search)
