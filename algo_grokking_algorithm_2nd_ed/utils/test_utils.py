@@ -9,7 +9,8 @@ from contextlib import contextmanager
 from utils.input_generator import generate_random_valid_input, generate_random_invalid_input, INPUT_SIZES
 
 # Constants
-TIMEOUT_SECONDS = 15  # Maximum time allowed for each test case
+TIMEOUT_SECONDS = 5  # Maximum time allowed for each test case
+TOTAL_TIMEOUT_SECONDS = 60  # Maximum time allowed for all tests combined
 
 SearchFunction = Callable[
     [List[Union[int, str]], Union[int, str]], Optional[int]]
@@ -319,6 +320,7 @@ def test_search_on_random_inputs(
     # Store results for complexity analysis
     results = []
     timeout_occurred = False
+    start_time = time.time()
 
     # Create test cases for both numbers and strings
     test_cases = []
@@ -350,6 +352,12 @@ def test_search_on_random_inputs(
         }
 
         for future in concurrent.futures.as_completed(future_to_test):
+            # Check if total time limit exceeded
+            if time.time() - start_time > TOTAL_TIMEOUT_SECONDS:
+                print("\nTest suite timeout: Total execution time exceeded 60 seconds")
+                timeout_occurred = True
+                break
+
             size, use_strings, is_valid = future_to_test[future]
             try:
                 with timeout_context(TIMEOUT_SECONDS):
@@ -385,13 +393,16 @@ def test_search_on_random_inputs(
                 print(f"{size:<12} | {'N/A':<10} | {'ERROR':<10} | {'N/A':<30}")
                 print(f"Error: {str(e)}")
 
+    total_time = time.time() - start_time
+    print(f"\nTotal test time: {total_time:.2f} seconds")
+
     if results:
         avg_time = mean(time for _, time in results)
         print("\nSummary:")
         print(f"Average execution time: {avg_time:.6f} seconds")
         print(f"Largest input size tested: {results[-1][0]}")
         if timeout_occurred:
-            print("Note: Testing stopped due to timeout on larger inputs")
+            print("Note: Testing stopped due to timeout")
 
     # Analyze complexity
     print("\nComplexity Analysis:")
