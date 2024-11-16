@@ -4,6 +4,7 @@ import time
 from statistics import mean
 from utils.input_generator import generate_random_valid_input, generate_random_invalid_input, INPUT_SIZES
 
+
 SearchFunction = Callable[[
     List[Union[int, str]], Union[int, str]], Optional[int]]
 
@@ -102,7 +103,13 @@ def test_search_on_random_inputs(search_function: SearchFunction, num_valid_test
     print(f"\nTesting {search_function.__name__} with number inputs:")
     print("=" * 50)
 
+    timeout_occurred = False
     for size in INPUT_SIZES:
+        if timeout_occurred:
+            print(f"\nSkipping size {size} (previous size timed out)")
+            number_performance[size] = {'avg_time': float('inf')}
+            continue
+
         print(f"\nTesting with array size: {size}")
         print("-" * 30)
 
@@ -164,15 +171,22 @@ def test_search_on_random_inputs(search_function: SearchFunction, num_valid_test
         except TimeoutError:
             print(f"\n⚠️  Tests for size {
                   size} aborted - took longer than 15 seconds")
-            print("Skipping remaining tests for this size")
+            print("Skipping remaining tests for this size and larger sizes")
             number_performance[size] = {'avg_time': float('inf')}
+            timeout_occurred = True
             continue
 
     # Test with random string inputs
     print(f"\nTesting {search_function.__name__} with string inputs:")
     print("=" * 50)
 
+    timeout_occurred = False
     for size in INPUT_SIZES:
+        if timeout_occurred:
+            print(f"\nSkipping size {size} (previous size timed out)")
+            string_performance[size] = {'avg_time': float('inf')}
+            continue
+
         print(f"\nTesting with array size: {size}")
         print("-" * 30)
 
@@ -234,8 +248,9 @@ def test_search_on_random_inputs(search_function: SearchFunction, num_valid_test
         except TimeoutError:
             print(f"\n⚠️  Tests for size {
                   size} aborted - took longer than 15 seconds")
-            print("Skipping remaining tests for this size")
+            print("Skipping remaining tests for this size and larger sizes")
             string_performance[size] = {'avg_time': float('inf')}
+            timeout_occurred = True
             continue
 
     # Print performance summaries
