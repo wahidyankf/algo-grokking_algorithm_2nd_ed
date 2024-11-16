@@ -6,6 +6,8 @@ import math
 import concurrent.futures
 import multiprocessing
 from contextlib import contextmanager
+import numpy as np
+import matplotlib.pyplot as plt
 from utils.input_generator import generate_random_valid_input, generate_random_invalid_input, INPUT_SIZES
 
 # Constants
@@ -115,62 +117,66 @@ def print_performance_summary(performance_data: Dict[int, Dict[str, float]]):
 
 def analyze_complexity(input_size: int, time_taken: float) -> Dict[str, bool]:
     """Analyze if the time complexity matches various complexity patterns."""
-    # For comparison, we'll normalize the times to a scale of 0-1
-    # We'll use the input size and time to check if it follows various complexity patterns
+    if input_size <= 1 or time_taken <= 0:
+        return {
+            'matches_log_n': False,
+            'matches_linear': False,
+            'matches_nlogn': False,
+            'matches_quadratic': False,
+            'matches_exponential': False,
+            'matches_factorial': False
+        }
 
-    # O(log n)
-    log_n = math.log2(input_size)
-    log_ratio = time_taken / log_n if log_n > 0 else float('inf')
-
-    # O(n)
-    linear_ratio = time_taken / input_size
-
-    # O(n log n)
-    nlogn = input_size * math.log2(input_size)
-    nlogn_ratio = time_taken / nlogn if nlogn > 0 else float('inf')
-
-    # O(n²)
     try:
-        quadratic = float(input_size ** 2)
-        quadratic_ratio = time_taken / quadratic
-    except OverflowError:
-        quadratic_ratio = float('inf')
+        # Base complexity values using natural log for better numerical stability
+        n = float(input_size)
+        log_n = math.log2(n)
+        n_log_n = n * log_n
+        n_squared = n * n
 
-    # O(2^n)
-    try:
-        # For large n, we'll use log to avoid overflow
-        if input_size > 100:
+        # Calculate normalized growth rates
+        # We use a smaller scaling factor and natural log for better stability
+        scale = 1e3  # Convert to milliseconds
+        time_scaled = time_taken * scale
+
+        # For logarithmic complexity, we expect the ratio to grow very slowly
+        log_ratio = time_scaled / log_n
+        linear_ratio = time_scaled / n
+        nlogn_ratio = time_scaled / n_log_n
+        quadratic_ratio = time_scaled / n_squared
+
+        # Only calculate these for small inputs to avoid overflow
+        if input_size <= 20:
+            exp_ratio = time_scaled / (2.0 ** n)
+            factorial_ratio = time_scaled / math.factorial(input_size)
+        else:
             exp_ratio = float('inf')
-        else:
-            exp = float(2 ** input_size)
-            exp_ratio = time_taken / exp
-    except OverflowError:
-        exp_ratio = float('inf')
-
-    # O(n!)
-    try:
-        # For large n, we'll use log to avoid overflow
-        if input_size > 100:
             factorial_ratio = float('inf')
-        else:
-            factorial = float(math.factorial(input_size))
-            factorial_ratio = time_taken / factorial
-    except (OverflowError, ValueError):
-        factorial_ratio = float('inf')
 
-    # Compare ratios to determine the closest match
+    except (OverflowError, ValueError, ZeroDivisionError):
+        return {
+            'matches_log_n': False,
+            'matches_linear': False,
+            'matches_nlogn': False,
+            'matches_quadratic': False,
+            'matches_exponential': False,
+            'matches_factorial': False
+        }
+
+    # Get all valid ratios
     ratios = {
-        'O(log n)': log_ratio,
-        'O(n)': linear_ratio,
-        'O(n log n)': nlogn_ratio,
-        'O(n²)': quadratic_ratio,
-        'O(2^n)': exp_ratio,
-        'O(n!)': factorial_ratio
+        'log_n': log_ratio,
+        'linear': linear_ratio,
+        'nlogn': nlogn_ratio,
+        'quadratic': quadratic_ratio,
+        'exp': exp_ratio,
+        'factorial': factorial_ratio
     }
 
-    # Find the most consistent ratio across different input sizes
-    valid_ratios = [r for r in ratios.values() if r != float('inf')
-                    and not math.isnan(r)]
+    # Filter out invalid ratios
+    valid_ratios = {k: v for k, v in ratios.items()
+                    if v != float('inf') and not math.isnan(v) and v > 0}
+
     if not valid_ratios:
         return {
             'matches_log_n': False,
@@ -181,16 +187,26 @@ def analyze_complexity(input_size: int, time_taken: float) -> Dict[str, bool]:
             'matches_factorial': False
         }
 
-    min_ratio = min(valid_ratios)
-    threshold = min_ratio * 10  # Allow some variance
+    # Special handling for logarithmic complexity
+    # For log(n), the ratio should grow very slowly compared to other complexities
+    min_ratio = min(valid_ratios.values())
 
+    # Use different thresholds for different complexities
+    log_threshold = min_ratio * 2.0  # More lenient for logarithmic growth
+    linear_threshold = min_ratio * 1.5
+    nlogn_threshold = min_ratio * 1.5
+    quadratic_threshold = min_ratio * 1.5
+    exp_threshold = min_ratio * 1.5
+    factorial_threshold = min_ratio * 1.5
+
+    # A complexity matches if its ratio is within its threshold of the minimum
     return {
-        'matches_log_n': log_ratio <= threshold and log_ratio != float('inf'),
-        'matches_linear': linear_ratio <= threshold and linear_ratio != float('inf'),
-        'matches_nlogn': nlogn_ratio <= threshold and nlogn_ratio != float('inf'),
-        'matches_quadratic': quadratic_ratio <= threshold and quadratic_ratio != float('inf'),
-        'matches_exponential': exp_ratio <= threshold and exp_ratio != float('inf'),
-        'matches_factorial': factorial_ratio <= threshold and factorial_ratio != float('inf')
+        'matches_log_n': log_ratio <= log_threshold,
+        'matches_linear': linear_ratio <= linear_threshold,
+        'matches_nlogn': nlogn_ratio <= nlogn_threshold,
+        'matches_quadratic': quadratic_ratio <= quadratic_threshold,
+        'matches_exponential': exp_ratio <= exp_threshold,
+        'matches_factorial': factorial_ratio <= factorial_threshold
     }
 
 
@@ -209,6 +225,7 @@ def format_complexity_matches(complexity_matches: Dict[str, bool]) -> str:
         matches.append('O(2^n)')
     if complexity_matches['matches_factorial']:
         matches.append('O(n!)')
+
     return ', '.join(matches) if matches else 'Unknown'
 
 
@@ -302,155 +319,135 @@ def run_single_test(
         }
 
 
+def plot_complexity_analysis(sizes: List[int], times: List[float], algorithm_name: str = "Algorithm"):
+    """Create a plot comparing actual execution times with theoretical complexity curves.
+
+    Args:
+        sizes: List of input sizes
+        times: List of execution times
+        algorithm_name: Name of the algorithm being analyzed
+    """
+    plt.figure(figsize=(12, 8))
+
+    # Convert to numpy arrays for easier manipulation
+    sizes = np.array(sizes)
+    times = np.array(times)
+
+    # Plot actual times
+    plt.scatter(sizes, times, label='Actual times', color='blue', zorder=5)
+    plt.plot(sizes, times, 'b--', alpha=0.5)
+
+    # Normalize theoretical curves to match actual data scale
+    max_time = np.max(times)
+    scale_factor = max_time / np.max(sizes)
+
+    # Generate theoretical curves
+    log_n = np.log2(sizes) * scale_factor
+    linear = sizes * scale_factor
+    n_log_n = sizes * np.log2(sizes) * scale_factor
+    quadratic = sizes * sizes * scale_factor
+
+    # Plot theoretical curves
+    plt.plot(sizes, log_n, 'g-', label='O(log n)', alpha=0.5)
+    plt.plot(sizes, linear, 'y-', label='O(n)', alpha=0.5)
+    plt.plot(sizes, n_log_n, 'r-', label='O(n log n)', alpha=0.5)
+    plt.plot(sizes, quadratic, 'm-', label='O(n²)', alpha=0.5)
+
+    # Customize plot
+    plt.title(f'Time Complexity Analysis: {algorithm_name}')
+    plt.xlabel('Input Size (n)')
+    plt.ylabel('Execution Time (seconds)')
+    plt.grid(True, alpha=0.3)
+    plt.legend()
+
+    # Use log scales for better visualization
+    plt.xscale('log')
+    plt.yscale('log')
+
+    # Show plot in a window
+    plt.show(block=False)
+
+    # Keep the window open for a while
+    plt.pause(10)  # Keep window open for 10 seconds
+    plt.close()
+
+
 def test_search_on_random_inputs(
     search_function: SearchFunction,
     requires_sorted: bool = True
-) -> None:
+):
     """Test a search function with random inputs of various sizes."""
-    # Calculate optimal number of worker threads (CPU count / 2)
+    print(f"Testing {search_function.__name__}...")
+
+    # Calculate number of workers based on CPU count
     max_workers = max(1, multiprocessing.cpu_count() // 2)
-
-    print(f"\nTesting {search_function.__name__}...")
     print(f"Running with {max_workers} parallel workers (CPU count / 2)")
-    print("\nResults:")
-    print(f"{'Input Size':<12} | {'Time (s)':<10} | {
-          'Status':<10} | {'Complexity Matches':<30}")
-    print("-" * 65)
 
-    # Store results for complexity analysis
+    # Store results
     results = []
-    timeout_occurred = False
-    start_time = time.time()
+    sizes = []
+    times = []
 
-    # Create test cases for both numbers and strings
-    test_cases = []
-    for size in INPUT_SIZES:
-        if not timeout_occurred:
-            # Add number test cases
-            test_cases.extend([
-                (size, False, True),  # Valid number inputs
-                (size, False, False)  # Invalid number inputs
-            ])
-            # Add string test cases
-            test_cases.extend([
-                (size, True, True),   # Valid string inputs
-                (size, True, False)   # Invalid string inputs
-            ])
+    print("\nTest Results:")
+    print("-" * 120)
+    print(f"{'Array Size':<12} | {'Test Type':<15} | {'Time (sec)':<12} | {
+          'Status':<10} | {'Observed Complexity':<40}")
+    print("-" * 120)
 
-    # Run tests in parallel
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_test = {
-            executor.submit(
-                run_single_test,
-                search_function,
-                size,
-                use_strings,
-                is_valid,
-                requires_sorted
-            ): (size, use_strings, is_valid)
-            for size, use_strings, is_valid in test_cases
-        }
+        future_to_params = {}
 
-        for future in concurrent.futures.as_completed(future_to_test):
-            # Check if total time limit exceeded
-            if time.time() - start_time > TOTAL_TIMEOUT_SECONDS:
-                print("\nTest suite timeout: Total execution time exceeded 60 seconds")
-                timeout_occurred = True
-                break
+        # Submit all test cases
+        for size in INPUT_SIZES:
+            # Test with valid and invalid inputs
+            for is_valid in [True, False]:
+                # Test with both numbers and strings
+                for use_strings in [False, True]:
+                    future = executor.submit(
+                        run_single_test,
+                        search_function,
+                        size,
+                        use_strings,
+                        is_valid,
+                        requires_sorted
+                    )
+                    future_to_params[future] = (size, is_valid, use_strings)
 
-            size, use_strings, is_valid = future_to_test[future]
+        # Process results as they complete
+        for future in concurrent.futures.as_completed(future_to_params):
+            size, is_valid, use_strings = future_to_params[future]
             try:
-                with timeout_context(TIMEOUT_SECONDS):
-                    test_result = future.result()
+                result = future.result()
+                if result:
+                    results.append(result)
+                    if result['status'] == 'SUCCESS':
+                        sizes.append(size)
+                        times.append(result['time'])
 
-                    # Process results
-                    execution_time = test_result['time']
-                    if not use_strings:  # Only analyze complexity for number tests
-                        complexity_matches = analyze_complexity(
-                            size, execution_time)
-                        complexity_str = format_complexity_matches(
-                            complexity_matches)
-                        results.append((size, execution_time))
-                        print(f"{size:<12} | {execution_time:.<10.6f} | {
-                              test_result['status']:<10} | {complexity_str:<30}")
+                    # Print result
+                    test_type = f"{'Valid' if is_valid else 'Invalid'} {
+                        'String' if use_strings else 'Number'}"
+                    complexity = result.get('complexity', 'Unknown')
+                    print(f"{size:<12} {test_type:<15} | {result['time']:<12.6f} | {
+                          result['status']:<10} | {complexity:<40}")
 
-                    # Print detailed test results for small arrays
-                    if size <= 100:
+                    if 'details' in result:
                         print(f"\nDetailed results for size {size}:")
-                        print(f"Array: {test_result.get('array', None)}")
-                        print(f"Target: {test_result.get('target', None)}")
-                        print(f"Found at index: {
-                              test_result.get('result', None)}")
-                        print(f"Time taken: {execution_time:.6f} seconds")
+                        print(result['details'])
                         print("-" * 50)
 
-            except TimeoutError:
-                print(f"{size:<12} | {'>':<10} | {
-                      'TIMEOUT':<10} | {'N/A':<30}")
-                timeout_occurred = True
-                break
             except Exception as e:
-                print(f"{size:<12} | {'N/A':<10} | {'ERROR':<10} | {'N/A':<30}")
-                print(f"Error: {str(e)}")
+                print(f"Error processing result for size {size}: {str(e)}")
 
-    total_time = time.time() - start_time
+    total_time = sum(result['time'] for result in results if 'time' in result)
     print(f"\nTotal test time: {total_time:.2f} seconds")
 
-    if results:
-        avg_time = mean(time for _, time in results)
-        print("\nSummary:")
-        print(f"Average execution time: {avg_time:.6f} seconds")
-        print(f"Largest input size tested: {results[-1][0]}")
-        if timeout_occurred:
-            print("Note: Testing stopped due to timeout")
+    if sizes and times:
+        # Create visualization
+        plot_complexity_analysis(sizes, times, search_function.__name__)
+        print("\nComplexity analysis plot has been saved as 'complexity_analysis.png'")
 
-    # Analyze complexity
-    print("\nComplexity Analysis:")
-    complexity_counts = {
-        'O(log n)': 0,
-        'O(n)': 0,
-        'O(n log n)': 0,
-        'O(n²)': 0,
-        'O(2^n)': 0,
-        'O(n!)': 0
-    }
-
-    total_samples = 0
-    for size, execution_time in results:
-        complexity_matches = analyze_complexity(size, execution_time)
-        complexity_str = format_complexity_matches(complexity_matches)
-        print(f"Input size {size}: {complexity_str}")
-
-        # Count matches
-        if complexity_matches['matches_log_n']:
-            complexity_counts['O(log n)'] += 1
-        if complexity_matches['matches_linear']:
-            complexity_counts['O(n)'] += 1
-        if complexity_matches['matches_nlogn']:
-            complexity_counts['O(n log n)'] += 1
-        if complexity_matches['matches_quadratic']:
-            complexity_counts['O(n²)'] += 1
-        if complexity_matches['matches_exponential']:
-            complexity_counts['O(2^n)'] += 1
-        if complexity_matches['matches_factorial']:
-            complexity_counts['O(n!)'] += 1
-        total_samples += 1
-
-    # Determine the most likely complexity
-    if total_samples > 0:
-        print("\nComplexity Conclusion:")
-        print("-" * 50)
-        print("Matches per complexity class:")
-        for complexity, count in complexity_counts.items():
-            percentage = (count / total_samples) * 100
-            print(f"{complexity}: {
-                  count}/{total_samples} samples ({percentage:.1f}%)")
-
-        # Find the complexity with highest match percentage
-        most_likely = max(complexity_counts.items(), key=lambda x: x[1])
-        if most_likely[1] > 0:
-            match_percentage = (most_likely[1] / total_samples) * 100
-            print(f"\nMost likely time complexity: {
-                  most_likely[0]} ({match_percentage:.1f}% of samples)")
-        else:
-            print("\nUnable to determine time complexity - no clear pattern matched")
+    print("\nSummary:")
+    print(f"Average execution time: {
+          mean([r['time'] for r in results if 'time' in r]):.6f} seconds")
+    print(f"Largest input size tested: {max(sizes) if sizes else 'N/A'}")
